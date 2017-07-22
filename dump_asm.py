@@ -6,6 +6,23 @@ def getasm(filename):
 	asm = os.popen('objdump -d ' + filename).read()
 	print asm
 
+#getasm(filename)
 
-getasm(filename)
+DATA_DIR = './samples'
+def getFilenames():
+	filenames = []
+	for filename in os.listdir(DATA_DIR):
+	    #print "Loading: %s" % filename
+	    #loadFile = open(os.path.join(DATA_DIR, filename), 'rb')
+	    filenames.append(filename)
+	    #loadFile.close()
+	return filenames
 
+def main():
+	filenames = getFilenames()
+	for name in filenames:
+		getasm(name)
+		pass
+
+if __name__ == '__main__':
+	main()
