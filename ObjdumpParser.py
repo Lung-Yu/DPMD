@@ -1,4 +1,5 @@
 import re
+import sys
 
 class ObjdumpParser(object):
 	"""docstring for ObjdumpParser"""
@@ -8,7 +9,7 @@ class ObjdumpParser(object):
 	def loadfile(self,filename):
 		with open(filename, mode='r') as f :
 			self._fileContent = f.read()
-	
+
 	def getContnet(self):
 		tag_start = '00401000 <.text>:'
 		index = self._fileContent.find(tag_start)
@@ -60,12 +61,12 @@ class ObjdumpParser(object):
 			words.insert(0, 0)
 		return words
 
-def main():
-	filename = 'asm.txt'
+def main(filename='asm.txt'):
+	#filename = 'asm.txt'
 	parser = ObjdumpParser()
 	parser.loadfile(filename)
 	for step in parser.asm2vec():
 			print step
 
 if __name__ == '__main__':
-	main()
+	main(sys.argv[1])
