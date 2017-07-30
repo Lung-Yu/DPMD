@@ -1,5 +1,6 @@
 import re
 import sys
+import os
 
 class ObjdumpParser(object):
 	"""docstring for ObjdumpParser"""
@@ -32,7 +33,7 @@ class ObjdumpParser(object):
 			step_vetor = []
 			for i in range(0,len(word_line),3):
 			 	word = word_line[i:i+2]
-			 	print word
+			 	#print word
 			 	vec = self.hex2wordVec(word[0]) + self.hex2wordVec(word[1])
 			 	step_vetor = step_vetor + vec
 
@@ -50,23 +51,34 @@ class ObjdumpParser(object):
 	def hex2wordVec(code):
 		if code == ' ':
 			return [1,0, 0, 0,0]
-		i = int(code,16)
-		words = []
-		while i != 0:
-			val = i % 2
-			i = i / 2
-			words.append(val)
-		words = words[::-1]
-		while len(words) < 5:
-			words.insert(0, 0)
-		return words
 
+		try:
+			i = int(code,16)
+			words = []
+			while i != 0:
+				val = i % 2
+				i = i / 2
+				words.append(val)
+			words = words[::-1]
+			while len(words) < 5:
+				words.insert(0, 0)
+			return words
+		except:
+			print "error code " + code
+			return [1,0, 0, 0,0]
+		
+
+
+FEATURE_DIR = './features'
 def main(filename='asm.txt'):
 	#filename = 'asm.txt'
 	parser = ObjdumpParser()
 	parser.loadfile(filename)
-	for step in parser.asm2vec():
-			print step
 
+	new_filename = os.path.join(FEATURE_DIR,filename)
+	# with open(new_filename,'w') as f:
+	# 	for step in parser.asm2vec():
+	# 			f.write(str(step))
+	print type(parser.asm2vec())
 if __name__ == '__main__':
 	main(sys.argv[1])
