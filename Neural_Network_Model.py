@@ -72,10 +72,7 @@ class MalwareBehaviorRiskScore(object):
 
 		with tf.name_scope('input'):
 			self._X = tf.placeholder(tf.float32, [None, self._input_size], name='X')
-			self._Y_ = tf.placeholder(tf.float32, [None, self._output_size], name='Y_')
-		
-		self._step = tf.placeholder(tf.float32,rnn_cell_size)
-		
+			self._Y_ = tf.placeholder(tf.float32, [None, self._output_size], name='Y_')		
 		
 		layer_1 = tf.nn.sigmoid(tf.matmul(self._X ,self._hidden_1_layer['weights']) + self._hidden_1_layer['biases'])
 		self._prediction =tf.nn.sigmoid( tf.matmul(layer_1, self._hidden_2_layer['weights']) + self._hidden_2_layer['biases'])
@@ -169,15 +166,15 @@ class MalwareBehaviorFeature(object):
 		
 
 	def define_optimizer(self):
-		self._cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self._prediction, labels=self._Y_))
+		self._cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self._prediction, labels=self._Y_))
 		#self._cost = tf.reduce_prod(self._prediction - self._Y_)
 		self._train_step = tf.train.GradientDescentOptimizer(learning_rate=self._learning_rate).minimize(self._cost)
 		
 		
 	def evaluate_model(self):
-		correct_pred = tf.equal(tf.argmax(self._Y_,1), tf.argmax(self._prediction,1))
+		self.correct_pred = tf.equal(tf.argmax(self._Y_,1), tf.argmax(self._prediction,1))
 		#correct_pred = tf.reduce_prod(self._prediction - self._Y_ )
-		self._accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+		self._accuracy = tf.reduce_mean(tf.cast(self.correct_pred , tf.float32))
 	
 	def training(self,data_Obj):
 		pre_batch,cur_batch = self.getBetch(data_Obj)
@@ -198,7 +195,6 @@ class MalwareBehaviorFeature(object):
 					acc = sess.run(self._accuracy, feed_dict={self._X: cur_batch, self._Y_: pre_batch})
 					# Calculate batch loss
 					loss = sess.run(self._cost,  feed_dict={self._X: cur_batch, self._Y_: pre_batch})
-
 					print("Iter " + str(epoch) + ", Minibatch Loss= {:.6f}".format(loss) ) + ", Training Accuracy= {:.5f}".format(acc)
 
 			print("Optimization Finished!")
