@@ -2,6 +2,7 @@ import re
 import sys
 import os
 import numpy as np
+import pefile
 
 class FormateNotMatch(Exception):
 	"""docstring for FormateNotMatch"""
@@ -111,7 +112,39 @@ class ObjdumpParser(object):
 
 		return words
 
+
+
 #FEATURE_DIR = './features'
+class PeParser(object):
+	"""docstring for ObjdumpParser"""
+	def __init__(self,filename):
+		super(PeParser, self).__init__()
+
+		
+		self._pe = pefile.PE(filename)
+
+	def getPE(self):
+		return self._pe
+
+	def show_sections(self):
+		print '##### sections ####'
+		for section in self._pe.sections:
+			print (section.Name, hex(section.VirtualAddress),hex(section.Misc_VirtualSize), section.SizeOfRawData )
+
+	def show_IAT(self):
+		print '#### IAT ####'
+		self._pe.parse_data_directories()
+
+		for entry in self._pe.DIRECTORY_ENTRY_IMPORT:
+			print entry.dll
+			for imp in entry.imports:
+				print '\t', hex(imp.address), imp.name
+
+	def show_EAT(self):
+		print '#### EAT ####'
+		for exp in self._pe.DIRECTORY_ENTRY_EXPORT.symbols:
+			print hex(self._pe.OPTIONAL_HEADER.ImageBase + exp.address), exp.name, exp.ordinal
+
 def main(filename='asm.txt'):
 	#filename = 'asm.txt'
 	parser = ObjdumpParser()
@@ -126,6 +159,11 @@ def main(filename='asm.txt'):
 		pass
 if __name__ == '__main__':
 	#main(sys.argv[1])
-	main('../Malware_Samples/ASM_Malekal/66d71817551be082f0b2e1ea7af444fc.asm')
+	#main('../Malware_Samples/ASM_Malekal/66d71817551be082f0b2e1ea7af444fc.asm')
+	parser = PeParser('../samples/Malware_Samples/Malekal/00442a088456ce18a43187605557b3d1')
+	parser.show_IAT()
+	parser.show_sections()
+	#parser.show_EAT()
+
 
 
