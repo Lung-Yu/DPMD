@@ -1,7 +1,5 @@
 import os
 
-filename = "00000fe7b4ba5f4e15b42350e95ca5e0"
-OUT_DIR = './samples'
 def getasm(full_filename):
 	asm = os.popen('objdump -d ' + full_filename).read()
 	write_asm(full_filename,asm)
@@ -12,11 +10,7 @@ def write_asm(filename,asm_code):
 	with open(new_filename,'w') as f:
 		f.write(asm_code)
 
-
-#getasm(filename)
-
-DATA_DIR = '../Malware_Samples/Malware_Knowledge_Base'
-def getFilenames():
+def getFilenames(DATA_DIR = '../Malware_Samples/Malware_Knowledge_Base'):
 	filenames = []
 	for filename in os.listdir(DATA_DIR):
 	    #print "Loading: %s" % filename
