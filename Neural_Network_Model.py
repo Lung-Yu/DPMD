@@ -114,53 +114,48 @@ class MalwareBehaviorRiskScore(object):
 
 
 class MalwareBehaviorFeature(object):
-    	"""docstring for PrePorcess"""
-	def __init__(self,input_size,output_size,learning_rate=0.5,iters=100):
+    """docstring for PrePorcess"""
+	def __init__(self,input_size,output_size,learning_rate=0.01,iters=100):
 		super(MalwareBehaviorFeature, self).__init__()
 		self._input_size = input_size
 		self._output_size = output_size
 		self._learning_rate = learning_rate
 		self._iters = iters
 		
-	def neural_network(self,rnn_cell_size=10):
-		self._hidden_1_layer = {
-			'weights':tf.Variable(tf.random_uniform( [self._input_size,512],-1.0 ,1.0 ),name='weights'),
-			'biases':tf.Variable(tf.zeros([1]) ,name='biases')
+	def neural_network(self,seq_max_len,rnn_cell_size=60):
+		self._weights = {
+			'out': tf.Variable(tf.random_normal([rnn_cell_size, self._output_size]))
+		}
+		self._biases = {
+			'out': tf.Variable(tf.random_normal([self._output_size]))
 		}
 		
-		self._hidden_2_layer = {
-			'weights':tf.Variable(tf.random_uniform( [512,128],-1.0 ,1.0 ),name='weights'),
-			'biases':tf.Variable(tf.zeros([1]) ,name='biases')
-		}
-
-		self._hidden_3_layer = {
-			'weights':tf.Variable(tf.random_uniform( [128,64],-1.0 ,1.0 ),name='weights'),
-			'biases':tf.Variable(tf.zeros([1]) ,name='biases')
-		}
-
-		self._hidden_4_layer = {
-			'weights':tf.Variable(tf.random_uniform( [64,self._output_size],-1.0 ,1.0 ),name='weights'),
-			'biases':tf.Variable(tf.zeros([1]) ,name='biases')
-		}
-
 		with tf.name_scope('input'):
-			self._X = tf.placeholder(tf.float32, [None, self._input_size], name='X')
+			self._X = tf.placeholder(tf.float32, [None,seq_max_len,self._input_size], name='X')
 			self._Y_ = tf.placeholder(tf.float32, [None, self._output_size], name='Y_')
+			self._seqlen = tf.placeholder(tf.int32, [None],name='seqlen')
 		
+		# Prepare data shape to match `rnn` function requirements
+		# Current data input shape: (batch_size, n_steps, n_input)
+		# Required shape: 'n_steps' tensors list of shape (batch_size, n_input)
+
+		# Unstack to get a list of 'n_steps' tensors of shape (batch_size, n_input)
+		self._X = tf.unstack(self._X, seq_max_len, 1)
+		lstm_cell = tf.contrib.rnn.BasicLSTMCell(rnn_cell_size)
+		outputs, states = tf.contrib.rnn.static_rnn(lstm_cell, self._X, dtype=tf.float32,sequence_length=self._seqlen)
+
+		outputs = tf.stack(outputs)
+		outputs = tf.transpose(outputs, [1, 0, 2])
 		
-		layer_1 = tf.nn.relu(tf.matmul(self._X ,self._hidden_1_layer['weights']) + self._hidden_1_layer['biases'])
-		# lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(512,forget_bias=1.0,state_is_tuple=True,activation=tf.nn.tanh)
-		# init_state = lstm_cell.zero_state(self._rnn_batch, dtype=tf.float32) # init all value to zero state
-		# layer_rnn, final_state = tf.nn.dynamic_rnn(lstm_cell, layer_1, initial_state=init_state, time_major=True)
-		layer_2 = tf.nn.relu( tf.matmul(layer_1, self._hidden_2_layer['weights']) + self._hidden_2_layer['biases'])
-		layer_3 = tf.nn.relu( tf.matmul(layer_2, self._hidden_3_layer['weights']) + self._hidden_3_layer['biases'])
-		self._prediction = tf.nn.sigmoid( tf.matmul(layer_3, self._hidden_4_layer['weights']) + self._hidden_4_layer['biases'])
-		# layer_1 = tf.nn.sigmoid(tf.matmul(self._X ,self._hidden_1_layer['weights']) + self._hidden_1_layer['biases'])
-		# layer_2 = tf.nn.sigmoid(tf.matmul(self._X ,self._hidden_2_layer['weights']) + self._hidden_2_layer['biases'])
-		# self._prediction =tf.nn.sigmoid( tf.matmul(layer_2, self._hidden_3_layer['weights']) + self._hidden_3_layer['biases'])
-		
-		# self.lost_func()
-		# self.optimizer()
+		# Hack to build the indexing and retrieve the right output.
+		batch_size = tf.shape(outputs)[0]
+		# Start indices for each sample
+		index = tf.range(0, batch_size) * seq_max_len + (self._seqlen - 1)
+		# Indexing
+		outputs = tf.gather(tf.reshape(outputs, [-1, rnn_cell_size]), index)
+
+		self._rnn_out = tf.matmul(outputs, self._weights['out']) + self._biases['out']
+		self._prediction =tf.nn.sigmoid(self._rnn_out)
 		self.define_optimizer()
 		self.evaluate_model()
 		
@@ -176,39 +171,40 @@ class MalwareBehaviorFeature(object):
 		#correct_pred = tf.reduce_prod(self._prediction - self._Y_ )
 		self._accuracy = tf.reduce_mean(tf.cast(self.correct_pred , tf.float32))
 	
-	def training(self,data_Obj):
-		pre_batch,cur_batch = self.getBetch(data_Obj)
-		self._rnn_batch = len(pre_batch)
-		self.neural_network()
+	def training(self,data_Obj,bach_size=1):
+		self.neural_network(seq_max_len=bach_size)
 		self._saver = tf.train.Saver()
 
 		with tf.Session() as sess:
 			sess.run(tf.global_variables_initializer())
-			
+
+			data = data_Obj.nextBatch()
 			print "start training..."
 			for epoch in range(0,self._iters):
-				sess.run(self._train_step,feed_dict={self._X:cur_batch,self._Y_:pre_batch})
 
-				train_accuacy = self._accuracy.eval(feed_dict={self._X:cur_batch,self._Y_:pre_batch})
-				if epoch % 100 == 0:
-    				# Calculate batch accuracy
-					acc = sess.run(self._accuracy, feed_dict={self._X: cur_batch, self._Y_: pre_batch})
-					# Calculate batch loss
-					loss = sess.run(self._cost,  feed_dict={self._X: cur_batch, self._Y_: pre_batch})
-					print("Iter " + str(epoch) + ", Minibatch Loss= {:.6f}".format(loss) ) + ", Training Accuracy= {:.5f}".format(acc)
+				batch_x = []
+				steps = data[0]
+				for i in range(0,len(steps),bach_size):
+					bach=[]
+					for j in range(i,bach_size):
+						bach.append(steps[j])
+					batch_x.append(bach)
+				
+				
+				sess.run(self._rnn_out,feed_dict={self._X:batch_x,self._seqlen:3})
+				print ("Iter " + str(epoch))
+
+				# train_accuacy = self._accuracy.eval(feed_dict={self._X:cur_batch,self._Y_:pre_batch})
+				# if epoch % 100 == 0:
+    			# 	# Calculate batch accuracy
+				# 	acc = sess.run(self._accuracy, feed_dict={self._X: cur_batch, self._Y_: pre_batch})
+				# 	# Calculate batch loss
+				# 	loss = sess.run(self._cost,  feed_dict={self._X: cur_batch, self._Y_: pre_batch})
+				# 	print("Iter " + str(epoch) + ", Minibatch Loss= {:.6f}".format(loss) ) + ", Training Accuracy= {:.5f}".format(acc)
 
 			print("Optimization Finished!")
-			self.saveModel(sess)
-
-	def getBetch(self,data_obj):
-		data = data_obj.nextBatch()
-		pre_batch = []
-		cur_batch = []
-		for i in range(1,len(data[0])):
-			pre_batch.append(data[0][i - 1])
-			cur_batch.append(data[0][i])
-		return pre_batch,cur_batch
-			
+			#self.saveModel(sess)
+				
 	def inference(X):
 		print 'inference'
 
@@ -245,5 +241,5 @@ if __name__ == "__main__":
     #vec_n = PrePorcess.getVector(filename='../samples/Malware_Samples/ASM_Malekal/7f7ccaa16fb15eb1c7399d422f8363e8.asm')
 	X = MalwareSamples('../samples/postive/')
 
-	model = MalwareBehaviorFeature(input_size=60,output_size=60,iters=10000)
+	model = MalwareBehaviorFeature(input_size=60,output_size=60,learning_rate=0.05,iters=100)
 	model.training(X)
